@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Control de Mercadería</title>
+  <style>
+    /* Estilos generales */
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #f4f4f4;
+      margin: 0;
+      padding: 0;
+      color: #333;
+    }
+    h1, h2 {
+      color: #2c3e50;
+      text-align: center;
+    }
+    h2 {
+      margin-top: 30px;
+    }
+    /* Estilos del contenedor principal */
+    .container {
+      width: 80%;
+      margin: 0 auto;
+      padding: 20px;
+      background-color: #fff;
+      border-radius: 8px;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    }
+    /* Estilos de la tabla */
+    table {
+      width: 100%;
+      margin-top: 20px;
+      border-collapse: collapse;
+    }
+    th, td {
+      padding: 12px;
+      text-align: center;
+      border: 1px solid #ddd;
+    }
+    th {
+      background-color: #2c3e50;
+      color: #fff;
+    }
+    td {
+      background-color: #ecf0f1;
+    }
+    /* Estilos de los botones */
+    button {
+      background-color: #3498db;
+      color: #fff;
+      border: none;
+      padding: 10px 20px;
+      cursor: pointer;
+      border-radius: 5px;
+      font-size: 16px;
+    }
+    button:hover {
+      background-color: #2980b9;
+    }
+    /* Estilos del formulario */
+    input[type="text"], textarea {
+      width: 100%;
+      padding: 10px;
+      margin-top: 10px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      font-size: 16px;
+    }
+    /* Estilos de la fila con diferencia */
+    .diferencia {
+      background-color: #f8d7da;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <h1>Control de Mercadería</h1>
+
+    <h2>Ingreso de mercadería (múltiple)</h2>
+    <p>Ingresá cada línea como <strong>SKU,Cantidad</strong> para registrar lo que llegó</p>
+    <textarea id="skusIngreso" placeholder="A001,3&#10;A002,5"></textarea><br>
+    <button onclick="agregarIngresosMultiples()">Agregar Mercadería</button>
+
+    <h2>Pickeo de mercadería (uno por uno)</h2>
+    <p>Cada vez que pickeás un SKU, escribilo y presioná "Agregar Pickeo"</p>
+    <input type="text" id="skuPickeo" placeholder="Ej: A001">
+    <button onclick="agregarPickeo()">Agregar Pickeo</button>
+
+    <h2>Resumen</h2>
+    <table id="resumenTabla">
+      <thead>
+        <tr>
+          <th>SKU</th>
+          <th>Total Ingresado</th>
+          <th>Total Pickeado</th>
+          <th>Diferencia</th>
+          <th>Acción</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+
+    <button onclick="descargarExcel()">Descargar Resumen Excel</button>
+  </div>
+
+  <script>
+    let ingresos = [];
+    let pickeados = [];
+
+    // Agregar ingresos múltiples
+    function agregarIngresosMultiples() {
+      const text = document.getElementById('skusIngreso').value.trim();
+      const lines = text.split(/\n|;/);
+      lines.forEach(line => {
+        const parts = line.split(',');
+        if (parts.length === 2) {
+          const sku = parts[0].trim();
+          const cantidad = parseInt(parts[1]);
+          if (sku && cantidad > 0) ingresos.push({ sku, cantidad });
+        }
+      });
+      document.getElementById('skusIngreso').value = '';
+      actualizarResumen();
+    }
+
+    // Agregar pickeo uno por uno (cada pickeo suma 1)
+    function agregarPickeo() {
+      const sku = document.getElementById('skuPickeo').value.trim();
+      if (sku) {
+        pickeados.push({ sku, cantidad: 1 });
+        document.getElementById('skuPickeo').value = '';
+        actualizarResumen();
+      }
+    }
+
+    // Eliminar un pickeo específico
+    function eliminarPickeo(sku) {
+      pickeados = pickeados.filter(p => p.sku !== sku);
+      actualizarResumen();
+    }
+
+    // Actualizar la tabla de resumen
+    function actualizarResumen() {
+      const resumen = {};
+
+      // Sumar ingresos
+      ingresos.forEach(i => {
+        if (!resumen[i.sku]) resumen[i.sku] = { ingresado: 0, pickeado: 0 };
+        resumen[i.sku].ingresado += i.cantidad;
+      });
+
+      // Sumar pickeados
+      pickeados.forEach(p => {
+        if (!resumen[p.sku]) resumen[p.sku] = { ingresado: 0, pickeado: 0 };
+        resumen[p.sku].pickeado += p.cantidad;
+      });
+
+      const tbody = document.querySelector('#resumenTabla tbody');
+      tbody.innerHTML = '';
+      Object.keys(resumen).sort().forEach(sku => {
+        const row = document.createElement('tr');
+        const diferencia = resumen[sku].ingresado - resumen[sku].pickeado;
+        row.innerHTML = `
+          <td>${sku}</td>
+          <td>${resumen[sku].ingresado}</td>
+          <td>${resumen[sku].pickeado}</td>
+          <td class="${diferencia !== 0 ? 'diferencia' : ''}">${diferencia}</td>
+          <td><button onclick="eliminarPickeo('${sku}')">Eliminar Pickeo</button></td>
+        `;
+        tbody.appendChild(row);
+      });
+    }
+
+    // Descargar resumen en CSV
+    function descargarExcel() {
+      let csv = "SKU,Total Ingresado,Total Pickeado,Diferencia\n";
+      const rows = document.querySelectorAll("#resumenTabla tbody tr");
+      rows.forEach(row => {
+        const cols = row.querySelectorAll("td");
+        let rowData = [];
+        cols.forEach(col => rowData.push(col.innerText));
+        csv += rowData.join(",") + "\n";
+      });
+      const blob = new Blob([csv], { type: "text/csv" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "Resumen_Mercaderia.csv";
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+  </script>
+
+</body>
+</html>
+<h2>Ingreso de mercadería (múltiple)</h2>
+<p>Pega las columnas "Código" y "Cantidad" desde Excel (sin usar comas).</p>
+<textarea id="skusIngreso" placeholder="Código    Cantidad"></textarea><br>
+<button onclick="agregarIngresosMultiples()">Agregar Mercadería</button>
+
+<script>
+function agregarIngresosMultiples() {
+    const text = document.getElementById('skusIngreso').value.trim();
+    const lines = text.split(/\n|;/);
+    lines.forEach(line => {
+        // Detectar columnas separadas por tabulaciones
+        const parts = line.split('\t');
+        if(parts.length >= 2){
+            const sku = parts[0].trim();
+            const cantidad = parseInt(parts[1]);
+            if(sku && cantidad>0) ingresos.push({sku, cantidad});
+        }
+    });
+    document.getElementById('skusIngreso').value = '';
+    actualizarResumen();
+}
+</script>
